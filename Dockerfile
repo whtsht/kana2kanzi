@@ -5,8 +5,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     locales \
     fonts-noto-cjk \
-    mecab \
-    mecab-ipadic \
     && echo "ja_JP UTF-8" > /etc/locale.gen \
     && locale-gen
 
