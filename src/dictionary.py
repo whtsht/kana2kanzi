@@ -16,6 +16,7 @@ class KanaKanjiDictionary:
     def get(self, key: str) -> str | None:
         """
         かなをキーとして、漢字を取得する
+        対応する漢字が存在しない場合はNoneを返す
         """
         # TODO: 実装する
         return None
