@@ -5,6 +5,7 @@ from converter import KanaKanjiConverter
 
 
 mock_dict = KanaKanjiDictionaryMock(
+    # TODO: テストで使うデータを追加する
     {
         "わた": "綿",
         "たし": "足し",
