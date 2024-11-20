@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::io::{self, BufRead};
+use std::io::BufRead;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bigram {
@@ -16,6 +16,7 @@ pub struct BigramDB {
 
 impl BigramDB {
     const DB_PATH: &'static str = "./data/bigrams.db";
+    const TXT_PATH: &'static str = "./data/wakati.txt";
     pub const BOS: &'static str = "__BOS__";
     pub const EOS: &'static str = "__EOS__";
 
@@ -55,9 +56,10 @@ impl BigramDB {
         let mut bigram_count = HashMap::new();
         let mut unigram_count = HashMap::new();
 
-        let stdin = io::stdin();
+        let file = std::fs::File::open(Self::TXT_PATH).unwrap();
+        let reader = std::io::BufReader::new(file);
 
-        for line in stdin.lock().lines() {
+        for line in reader.lines() {
             let line = line.unwrap();
 
             let mut words: Vec<String> = vec!["__BOS__".to_string()];

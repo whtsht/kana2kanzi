@@ -41,7 +41,7 @@ pub struct Candidate {
 
 impl Kana2kanziConverter {
     pub fn new() -> Self {
-        let dict = DictDB::new().unwrap();
+        let dict = DictDB::new();
         let bigram = BigramDB::new().unwrap();
         Kana2kanziConverter { dict, bigram }
     }
@@ -60,7 +60,7 @@ pub fn find_candidate(conv: &Kana2kanziConverter, kana: &str, start: usize) -> V
 
     let mut candidates = HashSet::new();
     for (sub, rest) in SubstringIterator::new(kana) {
-        let kanzis = conv.dict.get_kanzis(sub).unwrap();
+        let kanzis = conv.dict.get_kanzis(sub);
         if !kanzis.is_empty() {
             let end = start + sub.chars().count();
             let mut new_candidates = kanzis
@@ -81,7 +81,7 @@ pub fn find_candidate(conv: &Kana2kanziConverter, kana: &str, start: usize) -> V
     candidates.into_iter().collect()
 }
 
-pub fn kana2kanzi(conv: &Kana2kanziConverter, kana: &str) -> String {
+pub fn kana2kanzi(conv: &Kana2kanziConverter, kana: &str) -> (String, f64) {
     let candidates = find_candidate(conv, kana, 0);
     let n = kana.chars().count();
     let mut dp = vec![0.0; n + 1];
@@ -119,7 +119,83 @@ pub fn kana2kanzi(conv: &Kana2kanziConverter, kana: &str) -> String {
         }
     }
 
-    traces[n].join("")
+    (traces[n].join(""), dp[n])
+}
+
+fn generate_replacements(input: &str) -> Vec<String> {
+    let hiragana = "あいうえお\
+                    かきくけこがぎぐげご\
+                    さしすせそざじずぜぞ\
+                    たちつてとだぢづでど\
+                    なにぬねの\
+                    はひふへほばびぶべぼぱぴぷぺぽ\
+                    まみむめも\
+                    やゆよ\
+                    らりるれろ\
+                    わをん";
+
+    let mut results = Vec::new();
+
+    for i in 0..input.chars().count() {
+        for ch in hiragana.chars() {
+            let mut chars: Vec<char> = input.chars().collect();
+            chars[i] = ch;
+            results.push(chars.iter().collect());
+        }
+    }
+
+    results
+}
+
+fn fix_typo(input: &str, conv: &Kana2kanziConverter, word_len: usize) -> (String, f64) {
+    let input_vec = input.chars().collect::<Vec<_>>();
+
+    let mut max_score = 0.0;
+    let mut max_kanzi = String::new();
+
+    for (idx, i) in input_vec
+        .windows(word_len)
+        .map(|x| x.iter().collect::<String>())
+        .enumerate()
+    {
+        let replacements = generate_replacements(&i);
+
+        for replacement in replacements {
+            if !conv.dict.get_kanzis(&replacement).is_empty() {
+                let kana = input.replace(
+                    &input.chars().skip(idx).take(3).collect::<String>(),
+                    &replacement,
+                );
+                let (kanzi, score) = kana2kanzi(conv, &kana);
+                if score > max_score {
+                    max_score = score;
+                    max_kanzi = kanzi;
+                }
+            }
+        }
+    }
+
+    (max_kanzi, max_score)
+}
+
+pub fn kana2kanzi_with_typo(conv: &Kana2kanziConverter, input: &str) -> String {
+    let (kanzi, score) = kana2kanzi(conv, input);
+    if score > 0.0 {
+        return kanzi;
+    }
+
+    let mut max_score = 0.0;
+    let mut max_kanzi = String::new();
+    // 3文字以上の文字列に対して、誤字を訂正する
+    for i in 3..=input.chars().count() {
+        let (kanzi, score) = fix_typo(input, conv, i);
+        if score > max_score {
+            max_score = score;
+            max_kanzi = kanzi;
+        }
+    }
+
+    max_kanzi
 }
 
 #[cfg(test)]
@@ -174,6 +250,6 @@ mod tests {
     fn test_kana2kanzi() {
         let conv = super::Kana2kanziConverter::new();
         let kanzi = super::kana2kanzi(&conv, "かれがくるまでまつ");
-        assert_eq!(kanzi, "彼が来るまで待つ");
+        assert_eq!(kanzi.0, "彼が来るまで待つ");
     }
 }

@@ -1,15 +1,25 @@
-use kana2kanzi::bi_gram_conv::Kana2kanziConverter;
+use std::io::{self, Write as _};
+
+use kana2kanzi::bi_gram_conv::*;
 
 fn main() {
-    let conv = kana2kanzi::bi_gram_conv::Kana2kanziConverter::new();
-    kana2kanzi(&conv, "きょうはいいてんき");
-    kana2kanzi(&conv, "あめがやむまでまつ");
-    kana2kanzi(&conv, "くるまででかける");
-    kana2kanzi(&conv, "かれがくるまでまつ");
-    kana2kanzi(&conv, "かなかんじへんかんはむずかしい");
-}
+    println!("辞書ロード中……");
+    let conv = Kana2kanziConverter::new();
+    println!("辞書ロード完了");
 
-fn kana2kanzi(conv: &Kana2kanziConverter, input: &str) {
-    let kanzi = kana2kanzi::bi_gram_conv::kana2kanzi(conv, input);
-    println!("{}\n    -> {}", input, kanzi);
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+
+        let input = input.trim();
+        if input == "exit" {
+            break;
+        }
+
+        let kanzi = kana2kanzi_with_typo(&conv, input);
+        println!("{}", kanzi);
+    }
 }
