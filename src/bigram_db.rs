@@ -1,6 +1,7 @@
-use rusqlite::Connection;
 use std::collections::HashMap;
 use std::io::BufRead;
+
+use crate::bin_loader::{load_from_file, save_to_file};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bigram {
@@ -11,11 +12,11 @@ pub struct Bigram {
 
 #[derive(Debug)]
 pub struct BigramDB {
-    conn: Connection,
+    map: HashMap<(String, String), f64>,
 }
 
 impl BigramDB {
-    const DB_PATH: &'static str = "./data/bigrams.db";
+    const DB_PATH: &'static str = "./data/bigrams.bin";
     const TXT_PATH: &'static str = "./data/wakati.txt";
     pub const BOS: &'static str = "__BOS__";
     pub const EOS: &'static str = "__EOS__";
@@ -25,30 +26,6 @@ impl BigramDB {
         if fs::metadata(Self::DB_PATH).is_ok() {
             fs::remove_file(Self::DB_PATH)?;
         }
-        Ok(())
-    }
-
-    fn new_db() -> rusqlite::Result<()> {
-        Self::remove_db().unwrap();
-        let conn = Connection::open(Self::DB_PATH)?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS bigrams (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            first       TEXT NOT NULL,
-            second      TEXT NOT NULL,
-            probability REAL NOT NULL,
-            UNIQUE(second, first)
-        )",
-            (),
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS index_bigrams_first_second ON bigrams(first, second)",
-            (),
-        )?;
-
-        Self::insert_data()?;
-
         Ok(())
     }
 
@@ -83,111 +60,39 @@ impl BigramDB {
         (bigram_count, unigram_count)
     }
 
-    fn insert_data() -> rusqlite::Result<()> {
-        let mut conn = Connection::open(Self::DB_PATH)?;
+    pub fn build() {
+        Self::remove_db().unwrap();
+
         let (bigram_count, unigram_count) = Self::gen_insert_data();
 
-        let tx = conn.transaction()?;
-
-        {
-            let mut stmt = tx.prepare(
-                "INSERT OR IGNORE INTO bigrams (first, second, probability) VALUES (?1, ?2, ?3)",
-            )?;
-            for ((first, second), count) in bigram_count {
-                if count > 0 {
-                    let first_count = *unigram_count.get(&first).unwrap_or(&0);
-                    let probability = count as f64 / first_count as f64;
-                    stmt.execute((first, second, probability))?;
-                }
+        let mut map = HashMap::new();
+        for ((first, second), count) in bigram_count {
+            if count > 0 {
+                let first_count = *unigram_count.get(&first).unwrap_or(&0);
+                let probability = count as f64 / first_count as f64;
+                map.insert((first, second), probability);
             }
         }
 
-        tx.commit()?;
-
-        Ok(())
+        save_to_file(&map, Self::DB_PATH).unwrap();
     }
 
-    pub fn new() -> rusqlite::Result<Self> {
-        Ok(Self {
-            conn: Connection::open(Self::DB_PATH)?,
-        })
+    pub fn new() -> Self {
+        Self {
+            map: load_from_file(Self::DB_PATH, &mut Vec::new()).unwrap(),
+        }
     }
 
-    pub fn new_with_build() -> rusqlite::Result<Self> {
-        Self::new_db()?;
-        Self::new()
-    }
-
-    pub fn new_with_conn(conn: Connection) -> Self {
-        Self { conn }
-    }
-
-    pub fn get_probability(&self, first: &str, second: &str) -> rusqlite::Result<f64> {
-        let mut stmt = self.conn.prepare(
-            "SELECT
-                probability 
-             FROM
-                bigrams 
-             WHERE
-                first = ?1 AND second = ?2",
-        )?;
-
-        let probability = stmt
-            .query_row((first, second), |row| row.get(0))
-            .unwrap_or(0.0);
-
-        Ok(probability)
+    pub fn get_probability(&self, first: &str, second: &str) -> f64 {
+        self.map
+            .get(&(first.to_string(), second.to_string()))
+            .cloned()
+            .unwrap_or(0.0)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rusqlite::Connection;
-
-    fn setup_test_db() -> rusqlite::Result<BigramDB> {
-        let conn = Connection::open_in_memory()?;
-        let db = BigramDB { conn };
-
-        db.conn.execute(
-            "CREATE TABLE IF NOT EXISTS bigrams (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                first       TEXT NOT NULL,
-                second      TEXT NOT NULL,
-                probability REAL NOT NULL,
-                UNIQUE(first, second)
-            )",
-            (),
-        )?;
-
-        db.conn.execute(
-            "CREATE INDEX IF NOT EXISTS index_bigrams_first_second ON bigrams(first, second)",
-            (),
-        )?;
-
-        db.conn.execute(
-            "INSERT INTO bigrams (first, second, probability) VALUES ('さ', 'は', 0.5)",
-            (),
-        )?;
-        db.conn.execute(
-            "INSERT INTO bigrams (first, second, probability) VALUES ('さ', 'に', 0.8)",
-            (),
-        )?;
-
-        Ok(db)
-    }
-
-    #[test]
-    fn test_get_probability_existing_bigram() {
-        let db = setup_test_db().unwrap();
-        let probability = db.get_probability("さ", "は").unwrap();
-        assert_eq!(probability, 0.5);
-    }
-
-    #[test]
-    fn test_get_probability_non_existing_bigram() {
-        let db = setup_test_db().unwrap();
-        let probability = db.get_probability("ない", "言葉").unwrap();
-        assert_eq!(probability, 0.0);
+impl Default for BigramDB {
+    fn default() -> Self {
+        Self::new()
     }
 }

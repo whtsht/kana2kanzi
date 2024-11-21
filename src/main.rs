@@ -1,8 +1,12 @@
+use kana2kanzi::bi_gram_conv::*;
 use std::io::{self, Write as _};
 
-use kana2kanzi::bi_gram_conv::*;
-
 fn main() {
+    // DB初期化はこれをコメントアウトする
+    // use kana2kanzi::{bigram_db::BigramDB, dict_db::DictDB};
+    // DictDB::build();
+    // BigramDB::build();
+
     println!("辞書ロード中……");
     let conv = Kana2kanziConverter::new();
     println!("辞書ロード完了");

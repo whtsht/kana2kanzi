@@ -1,8 +1,12 @@
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{Read, Write};
 use std::{
-    collections::HashMap,
     fs,
     io::{self, BufRead},
 };
+
+use bincode::{deserialize, serialize};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DictEntry {
@@ -17,8 +21,19 @@ pub struct DictDB {
 
 impl DictDB {
     const TXT_PATH: &'static str = "./data/dict.txt";
+    const DB_PATH: &'static str = "./data/dict.bin";
 
-    pub fn new() -> Self {
+    fn remove_db() -> std::io::Result<()> {
+        use std::fs;
+        if fs::metadata(Self::DB_PATH).is_ok() {
+            fs::remove_file(Self::DB_PATH)?;
+        }
+        Ok(())
+    }
+
+    pub fn build() {
+        Self::remove_db().unwrap();
+
         let mut map = HashMap::new();
         let file = fs::File::open(Self::TXT_PATH).unwrap();
         let reader = io::BufReader::new(file);
@@ -28,6 +43,17 @@ impl DictDB {
             let (kana, kanzi) = (line[0].clone(), line[1].clone());
             map.entry(kana).or_insert_with(Vec::new).push(kanzi);
         }
+
+        let encoded: Vec<u8> = serialize(&map).unwrap();
+        let mut file = File::create(Self::DB_PATH).unwrap();
+        file.write_all(&encoded).unwrap();
+    }
+
+    pub fn new() -> Self {
+        let mut file = File::open(Self::DB_PATH).unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+        let map = deserialize(&buffer).unwrap();
         Self { map }
     }
 

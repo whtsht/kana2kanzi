@@ -42,7 +42,7 @@ pub struct Candidate {
 impl Kana2kanziConverter {
     pub fn new() -> Self {
         let dict = DictDB::new();
-        let bigram = BigramDB::new().unwrap();
+        let bigram = BigramDB::new();
         Kana2kanziConverter { dict, bigram }
     }
 }
@@ -94,7 +94,7 @@ pub fn kana2kanzi(conv: &Kana2kanziConverter, kana: &str) -> (String, f64) {
                     .iter()
                     .filter(|c| c.start == start && c.end == end)
                 {
-                    let prob = conv.bigram.get_probability(BigramDB::BOS, &c.word).unwrap();
+                    let prob = conv.bigram.get_probability(BigramDB::BOS, &c.word);
                     if prob >= dp[end] {
                         dp[end] = prob;
                         traces[end] = vec![c.word.clone()];
@@ -106,7 +106,7 @@ pub fn kana2kanzi(conv: &Kana2kanziConverter, kana: &str) -> (String, f64) {
                     .filter(|c| c.start == start && c.end == end)
                 {
                     if let Some(last_word) = traces[start].last() {
-                        let prob = conv.bigram.get_probability(last_word, &c.word).unwrap();
+                        let prob = conv.bigram.get_probability(last_word, &c.word);
                         if dp[start] * prob >= dp[end] {
                             dp[end] = dp[start] * prob;
                             let mut new_words = traces[start].clone();
