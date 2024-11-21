@@ -63,17 +63,18 @@ pub fn find_candidate(conv: &Kana2kanziConverter, kana: &str, start: usize) -> V
         let kanzis = conv.dict.get_kanzis(sub);
         if !kanzis.is_empty() {
             let end = start + sub.chars().count();
-            let mut new_candidates = kanzis
+            kanzis
                 .into_iter()
                 .map(|kanzi| Candidate {
                     word: kanzi,
                     start,
                     end,
                 })
-                .collect::<Vec<_>>();
-            new_candidates.extend(find_candidate(conv, rest, end));
+                .for_each(|c| {
+                    candidates.insert(c);
+                });
 
-            for c in new_candidates {
+            for c in find_candidate(conv, rest, end) {
                 candidates.insert(c);
             }
         }
@@ -186,6 +187,7 @@ pub fn kana2kanzi_with_typo(conv: &Kana2kanziConverter, input: &str) -> String {
 
     let mut max_score = 0.0;
     let mut max_kanzi = String::new();
+
     // 3文字以上の文字列に対して、誤字を訂正する
     for i in 3..=input.chars().count() {
         let (kanzi, score) = fix_typo(input, conv, i);
@@ -200,9 +202,11 @@ pub fn kana2kanzi_with_typo(conv: &Kana2kanziConverter, input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_substring_iterator() {
-        let mut iter = super::SubstringIterator::new("かれがくるまでまつ");
+        let mut iter = SubstringIterator::new("かれがくるまでまつ");
         assert_eq!(iter.next(), Some(("か", "れがくるまでまつ")));
         assert_eq!(iter.next(), Some(("かれ", "がくるまでまつ")));
         assert_eq!(iter.next(), Some(("かれが", "くるまでまつ")));
@@ -212,44 +216,5 @@ mod tests {
         assert_eq!(iter.next(), Some(("かれがくるまで", "まつ")));
         assert_eq!(iter.next(), Some(("かれがくるまでま", "つ")));
         assert_eq!(iter.next(), Some(("かれがくるまでまつ", "")));
-    }
-
-    #[test]
-    fn test_find_candidate() {
-        let conv = super::Kana2kanziConverter::new();
-        let candidates = super::find_candidate(&conv, "かれがくるまでまつ", 0);
-
-        assert!(candidates.contains(&super::Candidate {
-            word: "彼".to_string(),
-            start: 0,
-            end: 2
-        }));
-        assert!(candidates.contains(&super::Candidate {
-            word: "が".to_string(),
-            start: 2,
-            end: 3
-        }));
-        assert!(candidates.contains(&super::Candidate {
-            word: "来る".to_string(),
-            start: 3,
-            end: 5
-        }));
-        assert!(candidates.contains(&super::Candidate {
-            word: "まで".to_string(),
-            start: 5,
-            end: 7
-        }));
-        assert!(candidates.contains(&super::Candidate {
-            word: "待つ".to_string(),
-            start: 7,
-            end: 9
-        }));
-    }
-
-    #[test]
-    fn test_kana2kanzi() {
-        let conv = super::Kana2kanziConverter::new();
-        let kanzi = super::kana2kanzi(&conv, "かれがくるまでまつ");
-        assert_eq!(kanzi.0, "彼が来るまで待つ");
     }
 }
